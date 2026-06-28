@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>扇風琴 型紙設計</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Fan organ template designer</p>
+        <h1>扇風琴 型紙設計</h1>
+      </div>
+      <div class="top-actions">
+        <button class="icon-button" id="playScale" type="button" aria-label="音階を再生">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 5v14l11-7z"></path>
+          </svg>
+          <span>試聴</span>
+        </button>
+        <button class="icon-button" id="printTemplate" type="button" aria-label="型紙を印刷">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 9V3h12v6"></path>
+            <path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"></path>
+            <path d="M6 14h12v7H6z"></path>
+          </svg>
+          <span>印刷</span>
+        </button>
+        <button class="icon-button primary" id="downloadSvg" type="button" aria-label="SVGをダウンロード">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12"></path>
+            <path d="m7 10 5 5 5-5"></path>
+            <path d="M5 21h14"></path>
+          </svg>
+          <span>SVG保存</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="workspace" aria-label="型紙プレビュー">
+        <div class="preview-header">
+          <div>
+            <h2>中心から外側へ ド・レ・ミ・ファ・ソ・ラ・シ・ド</h2>
+            <p id="fitStatus">型紙を計算中です。</p>
+          </div>
+          <div class="unit-mark">実寸: mm</div>
+        </div>
+        <div class="sheet-frame">
+          <svg id="templateSvg" role="img" aria-label="扇風琴の型紙"></svg>
+        </div>
+      </section>
+
+      <aside class="controls" aria-label="設計設定">
+        <section class="panel">
+          <h2>音階</h2>
+          <div class="field-grid two">
+            <label>
+              <span>ドの音</span>
+              <select id="tonic">
+                <option value="48">C3</option>
+                <option value="50">D3</option>
+                <option value="52">E3</option>
+                <option value="53">F3</option>
+                <option value="55">G3</option>
+                <option value="57">A3</option>
+                <option value="59">B3</option>
+                <option value="60" selected>C4</option>
+                <option value="62">D4</option>
+                <option value="64">E4</option>
+                <option value="65">F4</option>
+                <option value="67">G4</option>
+              </select>
+            </label>
+            <label>
+              <span>調律モデル</span>
+              <select id="tuningModel">
+                <option value="reed" selected>紙リード</option>
+                <option value="air">空気柱</option>
+              </select>
+            </label>
+          </div>
+          <label class="range-field">
+            <span>ドの舌片長 <output id="baseLengthOut">42</output> mm</span>
+            <input id="baseLength" type="range" min="28" max="75" value="42" step="1">
+          </label>
+        </section>
+
+        <section class="panel">
+          <h2>型紙</h2>
+          <div class="field-grid two">
+            <label>
+              <span>用紙</span>
+              <select id="paperSize">
+                <option value="a4" selected>A4 縦</option>
+                <option value="letter">Letter 縦</option>
+                <option value="a3">A3 縦</option>
+              </select>
+            </label>
+            <label>
+              <span>切りしろ</span>
+              <select id="margin">
+                <option value="8">8 mm</option>
+                <option value="10" selected>10 mm</option>
+                <option value="14">14 mm</option>
+              </select>
+            </label>
+          </div>
+          <label class="range-field">
+            <span>内側半径 <output id="innerRadiusOut">22</output> mm</span>
+            <input id="innerRadius" type="range" min="12" max="42" value="22" step="1">
+          </label>
+          <label class="range-field">
+            <span>音の間隔 <output id="notePitchOut">12</output> mm</span>
+            <input id="notePitch" type="range" min="8" max="18" value="12" step="1">
+          </label>
+          <label class="range-field">
+            <span>扇の角度 <output id="fanAngleOut">128</output>°</span>
+            <input id="fanAngle" type="range" min="86" max="168" value="128" step="1">
+          </label>
+          <label class="range-field">
+            <span>舌片幅 <output id="tabWidthOut">7</output> mm</span>
+            <input id="tabWidth" type="range" min="4" max="11" value="7" step="0.5">
+          </label>
+        </section>
+
+        <section class="panel">
+          <h2>音の寸法</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>音</th>
+                  <th>周波数</th>
+                  <th>舌片長</th>
+                </tr>
+              </thead>
+              <tbody id="noteTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
