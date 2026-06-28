@@ -27,8 +27,9 @@ const controls = {
   notePitch: document.querySelector("#notePitch"),
   fanAngle: document.querySelector("#fanAngle"),
   tabWidth: document.querySelector("#tabWidth"),
-  holeInterval: document.querySelector("#holeInterval"),
-  holeSize: document.querySelector("#holeSize")
+  rotationRpm: document.querySelector("#rotationRpm"),
+  holeLength: document.querySelector("#holeLength"),
+  holeWidth: document.querySelector("#holeWidth")
 };
 
 const outputs = {
@@ -37,8 +38,8 @@ const outputs = {
   notePitch: document.querySelector("#notePitchOut"),
   fanAngle: document.querySelector("#fanAngleOut"),
   tabWidth: document.querySelector("#tabWidthOut"),
-  holeInterval: document.querySelector("#holeIntervalOut"),
-  holeSize: document.querySelector("#holeSizeOut")
+  holeLength: document.querySelector("#holeLengthOut"),
+  holeWidth: document.querySelector("#holeWidthOut")
 };
 
 const svg = document.querySelector("#templateSvg");
@@ -59,8 +60,9 @@ function getSettings() {
     notePitch: Number(controls.notePitch.value),
     fanAngle: Number(controls.fanAngle.value),
     tabWidth: Number(controls.tabWidth.value),
-    holeInterval: Number(controls.holeInterval.value),
-    holeSize: Number(controls.holeSize.value)
+    rotationRpm: Math.max(1, Number(controls.rotationRpm.value)),
+    holeLength: Number(controls.holeLength.value),
+    holeWidth: Number(controls.holeWidth.value)
   };
 }
 
@@ -157,20 +159,21 @@ function sectorBounds(cx, cy, radius, startAngle, endAngle) {
   });
 }
 
-function holeAngles(startAngle, endAngle, interval, offset) {
+function holeAnglesForCount(count, startAngle, endAngle, offset = 0) {
   const angles = [];
-  const span = endAngle - startAngle;
-  const fullCircle = span >= 359.999;
-  const limit = fullCircle ? endAngle - 0.001 : endAngle;
-  let angle = startAngle + offset;
-  while (angle < startAngle) {
-    angle += interval;
-  }
-  while (angle <= limit) {
-    angles.push(angle);
-    angle += interval;
+  const interval = 360 / count;
+  for (let i = 0; i < count; i += 1) {
+    const angle = -180 + offset + i * interval;
+    if (angleInRange(angle, startAngle, endAngle)) {
+      angles.push(angle);
+    }
   }
   return angles;
+}
+
+function holeCountForFrequency(frequency, rotationRpm) {
+  const rotationsPerSecond = rotationRpm / 60;
+  return Math.max(1, Math.round(frequency / rotationsPerSecond));
 }
 
 function buildNotes(settings) {
@@ -183,6 +186,7 @@ function buildNotes(settings) {
       index,
       midi,
       frequency,
+      holeCount: holeCountForFrequency(frequency, settings.rotationRpm),
       length: noteLength(settings.baseLength, baseFrequency, frequency, settings.tuningModel),
       radius: settings.innerRadius + index * settings.notePitch
     };
@@ -197,6 +201,7 @@ function renderTable(notes) {
     tr.innerHTML = `
       <td><button type="button" aria-label="${note.label}を再生" data-note="${note.index}">♪</button> ${note.label}</td>
       <td>${note.frequency.toFixed(1)} Hz</td>
+      <td>${note.holeCount}</td>
       <td>${note.length.toFixed(1)} mm</td>
     `;
     fragment.appendChild(tr);
@@ -214,7 +219,7 @@ function renderSvg(settings, notes) {
   const startAngle = -settings.fanAngle / 2;
   const endAngle = settings.fanAngle / 2;
   const minRadius = Math.max(6, settings.innerRadius - settings.notePitch * 0.72);
-  const requiredRadius = outerRadius + settings.holeSize / 2;
+  const requiredRadius = outerRadius + Math.max(settings.holeLength, settings.holeWidth) / 2;
   const bounds = sectorBounds(center.x, center.y, requiredRadius, startAngle, endAngle);
   const isFit = bounds.minX > settings.margin
     && bounds.maxX < paper.width - settings.margin
@@ -292,7 +297,7 @@ function renderSvg(settings, notes) {
     if (rawSlotAngle > settings.fanAngle - 10) {
       hasShortenedSlots = true;
     }
-    const holeOffset = note.index * (settings.holeInterval / notes.length);
+    const holeOffset = note.index * 0.35;
 
     add("path", {
       d: arcPath(center.x, center.y, note.radius, startAngle, endAngle),
@@ -318,15 +323,18 @@ function renderSvg(settings, notes) {
       "stroke-linecap": "round"
     }, group);
 
-    holeAngles(startAngle, endAngle, settings.holeInterval, holeOffset).forEach((angle) => {
+    holeAnglesForCount(note.holeCount, startAngle, endAngle, holeOffset).forEach((angle) => {
       const point = polar(center.x, center.y, note.radius, angle);
-      add("circle", {
-        cx: point.x.toFixed(3),
-        cy: point.y.toFixed(3),
-        r: (settings.holeSize / 2).toFixed(3),
+      add("rect", {
+        x: (point.x - settings.holeLength / 2).toFixed(3),
+        y: (point.y - settings.holeWidth / 2).toFixed(3),
+        width: settings.holeLength.toFixed(3),
+        height: settings.holeWidth.toFixed(3),
+        rx: "0.25",
         fill: "#fbfaf6",
         stroke: cutColor,
-        "stroke-width": "0.5"
+        "stroke-width": "0.5",
+        transform: `rotate(${angle.toFixed(3)} ${point.x.toFixed(3)} ${point.y.toFixed(3)})`
       }, group);
     });
 
@@ -374,7 +382,7 @@ function renderSvg(settings, notes) {
     fill: "#65717c",
     "font-size": "3.3"
   });
-  caption.textContent = "実線: 切り込み  破線: 中心線・外形ガイド  丸穴: 音穴と切り込み止め";
+  caption.textContent = "実線: 切り込み  破線: 中心線・外形ガイド  長方形: 音穴  丸穴: 切り込み止め";
 
   addRuler(settings.margin, paper.height - settings.margin - 7, 50, ns);
 
@@ -429,8 +437,8 @@ function render() {
   outputs.notePitch.textContent = settings.notePitch;
   outputs.fanAngle.textContent = settings.fanAngle;
   outputs.tabWidth.textContent = settings.tabWidth;
-  outputs.holeInterval.textContent = settings.holeInterval;
-  outputs.holeSize.textContent = settings.holeSize.toFixed(1);
+  outputs.holeLength.textContent = settings.holeLength.toFixed(1);
+  outputs.holeWidth.textContent = settings.holeWidth.toFixed(1);
 
   currentNotes = buildNotes(settings);
   renderTable(currentNotes);

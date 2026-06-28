@@ -123,13 +123,20 @@
             <span>舌片幅 <output id="tabWidthOut">7</output> mm</span>
             <input id="tabWidth" type="range" min="4" max="11" value="7" step="0.5">
           </label>
-          <label class="range-field">
-            <span>音穴の間隔 <output id="holeIntervalOut">45</output>°</span>
-            <input id="holeInterval" type="range" min="12" max="60" value="45" step="1">
+          <label class="number-field">
+            <span>羽の回転数</span>
+            <div class="inline-input">
+              <input id="rotationRpm" type="number" min="60" max="6000" value="1200" step="10">
+              <span>rpm</span>
+            </div>
           </label>
           <label class="range-field">
-            <span>音穴径 <output id="holeSizeOut">2.4</output> mm</span>
-            <input id="holeSize" type="range" min="1.2" max="5" value="2.4" step="0.1">
+            <span>音穴の長さ <output id="holeLengthOut">4.0</output> mm</span>
+            <input id="holeLength" type="range" min="1.5" max="8" value="4" step="0.1">
+          </label>
+          <label class="range-field">
+            <span>音穴の幅 <output id="holeWidthOut">2.0</output> mm</span>
+            <input id="holeWidth" type="range" min="1" max="5" value="2" step="0.1">
           </label>
         </section>
 
@@ -141,6 +148,7 @@
                 <tr>
                   <th>音</th>
                   <th>周波数</th>
+                  <th>穴数</th>
                   <th>舌片長</th>
                 </tr>
               </thead>
