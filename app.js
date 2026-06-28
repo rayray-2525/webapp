@@ -26,7 +26,9 @@ const controls = {
   innerRadius: document.querySelector("#innerRadius"),
   notePitch: document.querySelector("#notePitch"),
   fanAngle: document.querySelector("#fanAngle"),
-  tabWidth: document.querySelector("#tabWidth")
+  tabWidth: document.querySelector("#tabWidth"),
+  holeInterval: document.querySelector("#holeInterval"),
+  holeSize: document.querySelector("#holeSize")
 };
 
 const outputs = {
@@ -34,7 +36,9 @@ const outputs = {
   innerRadius: document.querySelector("#innerRadiusOut"),
   notePitch: document.querySelector("#notePitchOut"),
   fanAngle: document.querySelector("#fanAngleOut"),
-  tabWidth: document.querySelector("#tabWidthOut")
+  tabWidth: document.querySelector("#tabWidthOut"),
+  holeInterval: document.querySelector("#holeIntervalOut"),
+  holeSize: document.querySelector("#holeSizeOut")
 };
 
 const svg = document.querySelector("#templateSvg");
@@ -54,7 +58,9 @@ function getSettings() {
     innerRadius: Number(controls.innerRadius.value),
     notePitch: Number(controls.notePitch.value),
     fanAngle: Number(controls.fanAngle.value),
-    tabWidth: Number(controls.tabWidth.value)
+    tabWidth: Number(controls.tabWidth.value),
+    holeInterval: Number(controls.holeInterval.value),
+    holeSize: Number(controls.holeSize.value)
   };
 }
 
@@ -76,6 +82,15 @@ function polar(cx, cy, radius, degrees) {
 }
 
 function arcPath(cx, cy, radius, startAngle, endAngle) {
+  if (Math.abs(endAngle - startAngle) >= 359.999) {
+    const start = polar(cx, cy, radius, -180);
+    const middle = polar(cx, cy, radius, 0);
+    return [
+      `M ${start.x.toFixed(3)} ${start.y.toFixed(3)}`,
+      `A ${radius.toFixed(3)} ${radius.toFixed(3)} 0 1 1 ${middle.x.toFixed(3)} ${middle.y.toFixed(3)}`,
+      `A ${radius.toFixed(3)} ${radius.toFixed(3)} 0 1 1 ${start.x.toFixed(3)} ${start.y.toFixed(3)}`
+    ].join(" ");
+  }
   const start = polar(cx, cy, radius, startAngle);
   const end = polar(cx, cy, radius, endAngle);
   const largeArc = Math.abs(endAngle - startAngle) <= 180 ? 0 : 1;
@@ -83,6 +98,21 @@ function arcPath(cx, cy, radius, startAngle, endAngle) {
 }
 
 function annularPath(cx, cy, inner, outer, startAngle, endAngle) {
+  if (Math.abs(endAngle - startAngle) >= 359.999) {
+    const outerTop = polar(cx, cy, outer, -180);
+    const outerBottom = polar(cx, cy, outer, 0);
+    const innerTop = polar(cx, cy, inner, -180);
+    const innerBottom = polar(cx, cy, inner, 0);
+    return [
+      `M ${outerTop.x.toFixed(3)} ${outerTop.y.toFixed(3)}`,
+      `A ${outer.toFixed(3)} ${outer.toFixed(3)} 0 1 1 ${outerBottom.x.toFixed(3)} ${outerBottom.y.toFixed(3)}`,
+      `A ${outer.toFixed(3)} ${outer.toFixed(3)} 0 1 1 ${outerTop.x.toFixed(3)} ${outerTop.y.toFixed(3)}`,
+      `L ${innerTop.x.toFixed(3)} ${innerTop.y.toFixed(3)}`,
+      `A ${inner.toFixed(3)} ${inner.toFixed(3)} 0 1 0 ${innerBottom.x.toFixed(3)} ${innerBottom.y.toFixed(3)}`,
+      `A ${inner.toFixed(3)} ${inner.toFixed(3)} 0 1 0 ${innerTop.x.toFixed(3)} ${innerTop.y.toFixed(3)}`,
+      "Z"
+    ].join(" ");
+  }
   const a = polar(cx, cy, outer, startAngle);
   const b = polar(cx, cy, outer, endAngle);
   const c = polar(cx, cy, inner, endAngle);
@@ -101,6 +131,46 @@ function linePath(cx, cy, inner, outer, angle) {
   const start = polar(cx, cy, inner, angle);
   const end = polar(cx, cy, outer, angle);
   return `M ${start.x.toFixed(3)} ${start.y.toFixed(3)} L ${end.x.toFixed(3)} ${end.y.toFixed(3)}`;
+}
+
+function angleInRange(angle, startAngle, endAngle) {
+  if (endAngle - startAngle >= 359.999) return true;
+  return angle >= startAngle && angle <= endAngle;
+}
+
+function sectorBounds(cx, cy, radius, startAngle, endAngle) {
+  const angles = [startAngle, endAngle];
+  [-180, -90, 0, 90, 180].forEach((angle) => {
+    if (angleInRange(angle, startAngle, endAngle)) angles.push(angle);
+  });
+  const points = angles.map((angle) => polar(cx, cy, radius, angle));
+  return points.reduce((bounds, point) => ({
+    minX: Math.min(bounds.minX, point.x),
+    maxX: Math.max(bounds.maxX, point.x),
+    minY: Math.min(bounds.minY, point.y),
+    maxY: Math.max(bounds.maxY, point.y)
+  }), {
+    minX: cx,
+    maxX: cx,
+    minY: cy,
+    maxY: cy
+  });
+}
+
+function holeAngles(startAngle, endAngle, interval, offset) {
+  const angles = [];
+  const span = endAngle - startAngle;
+  const fullCircle = span >= 359.999;
+  const limit = fullCircle ? endAngle - 0.001 : endAngle;
+  let angle = startAngle + offset;
+  while (angle < startAngle) {
+    angle += interval;
+  }
+  while (angle <= limit) {
+    angles.push(angle);
+    angle += interval;
+  }
+  return angles;
 }
 
 function buildNotes(settings) {
@@ -144,8 +214,12 @@ function renderSvg(settings, notes) {
   const startAngle = -settings.fanAngle / 2;
   const endAngle = settings.fanAngle / 2;
   const minRadius = Math.max(6, settings.innerRadius - settings.notePitch * 0.72);
-  const requiredHeight = center.y + settings.margin;
-  const isFit = center.y - outerRadius > settings.margin && requiredHeight <= paper.height;
+  const requiredRadius = outerRadius + settings.holeSize / 2;
+  const bounds = sectorBounds(center.x, center.y, requiredRadius, startAngle, endAngle);
+  const isFit = bounds.minX > settings.margin
+    && bounds.maxX < paper.width - settings.margin
+    && bounds.minY > settings.margin
+    && bounds.maxY < paper.height - settings.margin;
   let hasShortenedSlots = false;
 
   svg.setAttribute("viewBox", `0 0 ${paper.width} ${paper.height}`);
@@ -194,13 +268,14 @@ function renderSvg(settings, notes) {
     fill: "#20262b"
   });
 
-  [startAngle, 0, endAngle].forEach((angle) => {
+  const guideAngles = settings.fanAngle >= 359.999 ? [-180, -90, 0, 90] : [startAngle, 0, endAngle];
+  guideAngles.forEach((angle) => {
     add("path", {
       d: linePath(center.x, center.y, minRadius, outerRadius, angle),
       fill: "none",
-      stroke: angle === 0 ? "#20262b" : "#9a9489",
-      "stroke-width": angle === 0 ? "0.32" : "0.24",
-      "stroke-dasharray": angle === 0 ? "2.4 1.8" : "1.4 1.4"
+      stroke: angle === 0 || angle === -180 ? "#20262b" : "#9a9489",
+      "stroke-width": angle === 0 || angle === -180 ? "0.32" : "0.24",
+      "stroke-dasharray": angle === 0 || angle === -180 ? "2.4 1.8" : "1.4 1.4"
     });
   });
 
@@ -217,6 +292,7 @@ function renderSvg(settings, notes) {
     if (rawSlotAngle > settings.fanAngle - 10) {
       hasShortenedSlots = true;
     }
+    const holeOffset = note.index * (settings.holeInterval / notes.length);
 
     add("path", {
       d: arcPath(center.x, center.y, note.radius, startAngle, endAngle),
@@ -241,6 +317,18 @@ function renderSvg(settings, notes) {
       "stroke-width": "1.15",
       "stroke-linecap": "round"
     }, group);
+
+    holeAngles(startAngle, endAngle, settings.holeInterval, holeOffset).forEach((angle) => {
+      const point = polar(center.x, center.y, note.radius, angle);
+      add("circle", {
+        cx: point.x.toFixed(3),
+        cy: point.y.toFixed(3),
+        r: (settings.holeSize / 2).toFixed(3),
+        fill: "#fbfaf6",
+        stroke: cutColor,
+        "stroke-width": "0.5"
+      }, group);
+    });
 
     add("circle", {
       cx: polar(center.x, center.y, note.radius, slotStart).x.toFixed(3),
@@ -286,7 +374,7 @@ function renderSvg(settings, notes) {
     fill: "#65717c",
     "font-size": "3.3"
   });
-  caption.textContent = "実線: 切り込み  破線: 中心線・外形ガイド  丸穴: 切り込み止め";
+  caption.textContent = "実線: 切り込み  破線: 中心線・外形ガイド  丸穴: 音穴と切り込み止め";
 
   addRuler(settings.margin, paper.height - settings.margin - 7, 50, ns);
 
@@ -341,6 +429,8 @@ function render() {
   outputs.notePitch.textContent = settings.notePitch;
   outputs.fanAngle.textContent = settings.fanAngle;
   outputs.tabWidth.textContent = settings.tabWidth;
+  outputs.holeInterval.textContent = settings.holeInterval;
+  outputs.holeSize.textContent = settings.holeSize.toFixed(1);
 
   currentNotes = buildNotes(settings);
   renderTable(currentNotes);
