@@ -28,7 +28,6 @@ const controls = {
   fanAngle: document.querySelector("#fanAngle"),
   tabWidth: document.querySelector("#tabWidth"),
   rotationRpm: document.querySelector("#rotationRpm"),
-  holeLength: document.querySelector("#holeLength"),
   holeWidth: document.querySelector("#holeWidth")
 };
 
@@ -38,7 +37,6 @@ const outputs = {
   notePitch: document.querySelector("#notePitchOut"),
   fanAngle: document.querySelector("#fanAngleOut"),
   tabWidth: document.querySelector("#tabWidthOut"),
-  holeLength: document.querySelector("#holeLengthOut"),
   holeWidth: document.querySelector("#holeWidthOut")
 };
 
@@ -61,7 +59,6 @@ function getSettings() {
     fanAngle: Number(controls.fanAngle.value),
     tabWidth: Number(controls.tabWidth.value),
     rotationRpm: Math.max(1, Number(controls.rotationRpm.value)),
-    holeLength: Number(controls.holeLength.value),
     holeWidth: Number(controls.holeWidth.value)
   };
 }
@@ -176,19 +173,26 @@ function holeCountForFrequency(frequency, rotationRpm) {
   return Math.max(1, Math.round(frequency / rotationsPerSecond));
 }
 
+function balancedHoleLength(radius, holeCount) {
+  return Math.PI * radius / holeCount;
+}
+
 function buildNotes(settings) {
   const baseFrequency = midiToFrequency(settings.tonicMidi);
   return solfege.map((note, index) => {
     const midi = settings.tonicMidi + note.semitone;
     const frequency = midiToFrequency(midi);
+    const holeCount = holeCountForFrequency(frequency, settings.rotationRpm);
+    const radius = settings.innerRadius + index * settings.notePitch;
     return {
       ...note,
       index,
       midi,
       frequency,
-      holeCount: holeCountForFrequency(frequency, settings.rotationRpm),
+      holeCount,
+      holeLength: balancedHoleLength(radius, holeCount),
       length: noteLength(settings.baseLength, baseFrequency, frequency, settings.tuningModel),
-      radius: settings.innerRadius + index * settings.notePitch
+      radius
     };
   });
 }
@@ -219,7 +223,8 @@ function renderSvg(settings, notes) {
   const startAngle = -settings.fanAngle / 2;
   const endAngle = settings.fanAngle / 2;
   const minRadius = Math.max(6, settings.innerRadius - settings.notePitch * 0.72);
-  const requiredRadius = outerRadius + Math.max(settings.holeLength, settings.holeWidth) / 2;
+  const maxHoleLength = Math.max(...notes.map((note) => note.holeLength));
+  const requiredRadius = outerRadius + Math.max(maxHoleLength, settings.holeWidth) / 2;
   const bounds = sectorBounds(center.x, center.y, requiredRadius, startAngle, endAngle);
   const isFit = bounds.minX > settings.margin
     && bounds.maxX < paper.width - settings.margin
@@ -326,9 +331,9 @@ function renderSvg(settings, notes) {
     holeAnglesForCount(note.holeCount, startAngle, endAngle, holeOffset).forEach((angle) => {
       const point = polar(center.x, center.y, note.radius, angle);
       add("rect", {
-        x: (point.x - settings.holeLength / 2).toFixed(3),
+        x: (point.x - note.holeLength / 2).toFixed(3),
         y: (point.y - settings.holeWidth / 2).toFixed(3),
-        width: settings.holeLength.toFixed(3),
+        width: note.holeLength.toFixed(3),
         height: settings.holeWidth.toFixed(3),
         rx: "0.25",
         fill: "#fbfaf6",
@@ -437,7 +442,6 @@ function render() {
   outputs.notePitch.textContent = settings.notePitch;
   outputs.fanAngle.textContent = settings.fanAngle;
   outputs.tabWidth.textContent = settings.tabWidth;
-  outputs.holeLength.textContent = settings.holeLength.toFixed(1);
   outputs.holeWidth.textContent = settings.holeWidth.toFixed(1);
 
   currentNotes = buildNotes(settings);
