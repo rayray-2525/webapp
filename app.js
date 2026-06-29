@@ -177,6 +177,20 @@ function balancedHoleLength(radius, holeCount) {
   return Math.PI * radius / holeCount;
 }
 
+function curvedHolePath(cx, cy, radius, holeLength, holeWidth, angle) {
+  const angleSpan = Math.min(359.999, Math.max(2, holeLength / radius * 180 / Math.PI));
+  const startAngle = angle - angleSpan / 2;
+  const endAngle = angle + angleSpan / 2;
+  return annularPath(
+    cx,
+    cy,
+    radius - holeWidth / 2,
+    radius + holeWidth / 2,
+    startAngle,
+    endAngle
+  );
+}
+
 function buildNotes(settings) {
   const baseFrequency = midiToFrequency(settings.tonicMidi);
   return solfege.map((note, index) => {
@@ -223,8 +237,7 @@ function renderSvg(settings, notes) {
   const startAngle = -settings.fanAngle / 2;
   const endAngle = settings.fanAngle / 2;
   const minRadius = Math.max(6, settings.innerRadius - settings.notePitch * 0.72);
-  const maxHoleLength = Math.max(...notes.map((note) => note.holeLength));
-  const requiredRadius = outerRadius + Math.max(maxHoleLength, settings.holeWidth) / 2;
+  const requiredRadius = outerRadius + settings.holeWidth / 2;
   const bounds = sectorBounds(center.x, center.y, requiredRadius, startAngle, endAngle);
   const isFit = bounds.minX > settings.margin
     && bounds.maxX < paper.width - settings.margin
@@ -329,17 +342,11 @@ function renderSvg(settings, notes) {
     }, group);
 
     holeAnglesForCount(note.holeCount, startAngle, endAngle, holeOffset).forEach((angle) => {
-      const point = polar(center.x, center.y, note.radius, angle);
-      add("rect", {
-        x: (point.x - note.holeLength / 2).toFixed(3),
-        y: (point.y - settings.holeWidth / 2).toFixed(3),
-        width: note.holeLength.toFixed(3),
-        height: settings.holeWidth.toFixed(3),
-        rx: "0.25",
+      add("path", {
+        d: curvedHolePath(center.x, center.y, note.radius, note.holeLength, settings.holeWidth, angle),
         fill: "#fbfaf6",
         stroke: cutColor,
-        "stroke-width": "0.5",
-        transform: `rotate(${angle.toFixed(3)} ${point.x.toFixed(3)} ${point.y.toFixed(3)})`
+        "stroke-width": "0.5"
       }, group);
     });
 
